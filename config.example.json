@@ -1,0 +1,13 @@
+{
+  "_comentario": "EXEMPLO. O arquivo real fica em %APPDATA%/LeitorSereia (Windows) ou ~/Library/Application Support/LeitorSereia (Mac). Edite pelo app: menu do tray > 'Destravar PDF / Cadastrar CPFs-CNPJs'. Os numeros abaixo sao ficticios.",
+  "identifiers": [
+    { "label": "CPF Fabricio",          "value": "000.000.000-00" },
+    { "label": "CPF Felippe",           "value": "111.111.111-11" },
+    { "label": "CNPJ Asics Londrina",   "value": "11.222.333/0001-81" },
+    { "label": "CNPJ Hope Catuai",      "value": "22.333.444/0001-55" },
+    { "label": "CNPJ APEQ Balneario",   "value": "33.444.555/0001-66" }
+  ],
+  "hotkey": "ctrl+shift+q",
+  "hotkey_region": "ctrl+shift+4",
+  "save_unlocked_copy": true
+}

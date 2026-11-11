@@ -1,0 +1,16 @@
+# Leitor Sereia v2 — dependências
+# Instale com:  pip install -r requirements.txt
+
+pystray>=0.19.5
+Pillow>=10.0.0
+pyzbar>=0.1.9
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+pyperclip>=1.8.2
+keyboard>=0.13.5
+pikepdf>=8.0.0
+
+# Windows (opcional, melhora o atalho "Enviar para"):
+#   pip install pywin32
+# Para gerar o .exe / .app:
+#   pip install pyinstaller

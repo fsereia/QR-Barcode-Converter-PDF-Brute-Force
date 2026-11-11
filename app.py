@@ -26,6 +26,39 @@ import threading
 
 
 # ---------------------------------------------------------------------------
+# App empacotado (PyInstaller): faz o pyzbar achar a libzbar embutida
+# ---------------------------------------------------------------------------
+
+def _patch_zbar_for_frozen() -> None:
+    """
+    Fora do Windows, o pyzbar carrega a libzbar via find_library('zbar'), que
+    só funciona se a lib estiver instalada no sistema (ex.: Homebrew). No app
+    empacotado a libzbar vem embutida, mas o find_library não a enxerga numa
+    máquina sem Homebrew. Aqui, quando rodando congelado, apontamos o loader do
+    pyzbar direto pra lib embutida. Precisa rodar ANTES de importar pyzbar.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    import glob
+    from ctypes import cdll
+
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(sys.executable)
+    cands = glob.glob(os.path.join(base, "libzbar*.dylib")) or \
+        glob.glob(os.path.join(base, "**", "libzbar*.dylib"), recursive=True)
+    if not cands:
+        return
+    try:
+        from pyzbar import zbar_library
+        _lib = cdll.LoadLibrary(cands[0])
+        zbar_library.load = lambda: (_lib, [])
+    except Exception as e:
+        print(f"(aviso: não consegui pré-carregar a libzbar embutida: {e})")
+
+
+_patch_zbar_for_frozen()
+
+
+# ---------------------------------------------------------------------------
 # Utilitários comuns
 # ---------------------------------------------------------------------------
 

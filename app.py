@@ -85,7 +85,8 @@ def mode_unlock(pdf_path: str) -> int:
         )
         return 3
 
-    res = pdf_unlock.unlock(pdf_path, ids, save_copy=cfg.save_unlocked_copy)
+    res = pdf_unlock.unlock(pdf_path, ids, save_copy=cfg.save_unlocked_copy,
+                            overwrite=cfg.overwrite_original)
     if res.ok:
         if res.had_user_password:
             msg = (f"✅ Senha encontrada!\n\n"
@@ -95,7 +96,10 @@ def mode_unlock(pdf_path: str) -> int:
         else:
             msg = "✅ Este PDF não tinha senha de abertura (só permissões)."
         if res.saved_to:
-            msg += f"\n\nCópia sem senha salva em:\n{res.saved_to}"
+            if res.overwritten:
+                msg += f"\n\nOriginal substituído pela versão sem senha:\n{res.saved_to}"
+            else:
+                msg += f"\n\nCópia sem senha salva em:\n{res.saved_to}"
         messagebox.showinfo("Leitor Sereia — PDF destravado", msg)
         return 0
     else:
@@ -315,14 +319,19 @@ def run_tray() -> int:
     def act_settings(icon, item):
         _launch("--settings")
 
-    def act_install_menu(icon, item):
+    def _integration_module():
+        if sys.platform == "darwin":
+            import mac_integration as mi
+            return mi
         import windows_integration as wi
-        msg = wi.install()
+        return wi
+
+    def act_install_menu(icon, item):
+        msg = _integration_module().install()
         _notify("Leitor Sereia", msg)
 
     def act_remove_menu(icon, item):
-        import windows_integration as wi
-        msg = wi.uninstall()
+        msg = _integration_module().uninstall()
         _notify("Leitor Sereia", msg)
 
     def act_quit(icon, item):
@@ -335,6 +344,7 @@ def run_tray() -> int:
 
     cfg = config_store.load()
     is_windows = sys.platform.startswith("win")
+    is_mac = sys.platform == "darwin"
     menu_items = [
         pystray.MenuItem(f"Ler tela inteira  ({cfg.hotkey})", act_read, default=True),
         pystray.MenuItem(f"Recortar área da tela  ({cfg.hotkey_region})", act_read_region),
@@ -348,6 +358,12 @@ def run_tray() -> int:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Instalar menu botão-direito (.pdf)", act_install_menu),
             pystray.MenuItem("Remover menu botão-direito (.pdf)", act_remove_menu),
+        ]
+    elif is_mac:
+        menu_items += [
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Instalar Ação Rápida botão-direito (.pdf)", act_install_menu),
+            pystray.MenuItem("Remover Ação Rápida botão-direito (.pdf)", act_remove_menu),
         ]
     menu_items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Sair", act_quit)]
 

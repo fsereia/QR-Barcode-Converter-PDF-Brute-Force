@@ -108,8 +108,9 @@ class UnlockResult:
     password: str | None = None
     identifier_label: str | None = None      # qual loja/sócio
     rule: str | None = None                  # qual regra bateu
-    saved_to: str | None = None              # cópia sem senha
+    saved_to: str | None = None              # cópia sem senha (ou o próprio original, se sobrescrito)
     had_user_password: bool = True
+    overwritten: bool = False                # True se salvou por cima do original
     tried: int = 0
     error: str | None = None
 
@@ -182,12 +183,38 @@ def _unlocked_output_path(pdf_path: str) -> str:
     return candidate
 
 
-def save_without_password(pdf_path: str, password: str, out_path: str | None = None) -> str:
+def save_without_password(pdf_path: str, password: str, out_path: str | None = None,
+                          overwrite: bool = False) -> str:
     """
-    Abre com a senha correta e salva uma cópia SEM criptografia.
-    Nunca sobrescreve o original: cria <nome>_sem_senha.pdf.
+    Abre com a senha correta e salva SEM criptografia.
+
+    - overwrite=False (padrão): cria uma cópia <nome>_sem_senha.pdf e nunca
+      toca no original.
+    - overwrite=True: substitui o próprio original pela versão sem senha. Como
+      o pikepdf não pode salvar por cima do arquivo que está aberto, salva num
+      arquivo temporário na mesma pasta e só então troca pelo original (os.replace,
+      operação atômica). A versão com senha deixa de existir.
+
     Retorna o caminho salvo.
     """
+    if overwrite:
+        import tempfile
+        pdf_path = os.path.abspath(pdf_path)
+        folder = os.path.dirname(pdf_path)
+        fd, tmp = tempfile.mkstemp(suffix=".pdf", dir=folder)
+        os.close(fd)
+        try:
+            with pikepdf.open(pdf_path, password=password or "") as pdf:
+                pdf.save(tmp)
+            os.replace(tmp, pdf_path)   # troca atômica por cima do original
+        except Exception:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+        return pdf_path
+
     if out_path is None:
         out_path = _unlocked_output_path(pdf_path)
     with pikepdf.open(pdf_path, password=password or "") as pdf:
@@ -196,12 +223,19 @@ def save_without_password(pdf_path: str, password: str, out_path: str | None = N
     return out_path
 
 
-def unlock(pdf_path: str, identifiers: Iterable[Identifier], save_copy: bool = True) -> UnlockResult:
-    """Fluxo completo: acha a senha e (opcional) salva cópia sem senha."""
+def unlock(pdf_path: str, identifiers: Iterable[Identifier], save_copy: bool = True,
+           overwrite: bool = False) -> UnlockResult:
+    """
+    Fluxo completo: acha a senha e salva a versão sem senha.
+
+    overwrite=True salva por cima do original (apaga a versão com senha).
+    Caso contrário, respeita save_copy para gerar <nome>_sem_senha.pdf.
+    """
     res = find_password(pdf_path, identifiers)
-    if res.ok and save_copy:
+    if res.ok and (save_copy or overwrite):
         try:
-            res.saved_to = save_without_password(pdf_path, res.password or "")
+            res.saved_to = save_without_password(pdf_path, res.password or "", overwrite=overwrite)
+            res.overwritten = overwrite
         except Exception as e:
             res.error = f"Achei a senha mas falhei ao salvar a cópia: {e}"
     return res

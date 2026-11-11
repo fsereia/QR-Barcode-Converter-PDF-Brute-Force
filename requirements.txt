@@ -9,6 +9,11 @@ numpy>=1.24.0
 pyperclip>=1.8.2
 keyboard>=0.13.5
 pikepdf>=8.0.0
+tkinterdnd2>=0.4.2   # arrastar-e-soltar PDF na janela (opcional; app funciona sem)
+
+# IMPORTANTE (macOS): o Python do Homebrew não traz a interface gráfica (Tk).
+#   brew install python-tk@3.12
+# sem isso, as janelas do app não abrem.
 
 # Windows (opcional, melhora o atalho "Enviar para"):
 #   pip install pywin32

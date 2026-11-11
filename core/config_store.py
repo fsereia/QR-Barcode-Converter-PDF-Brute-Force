@@ -46,6 +46,7 @@ class Config:
     hotkey: str = DEFAULT_HOTKEY                 # ler tela inteira
     hotkey_region: str = DEFAULT_HOTKEY_REGION   # recortar área
     save_unlocked_copy: bool = True
+    overwrite_original: bool = False             # salvar por cima do original (apaga a versão com senha)
 
     # ---- identifiers ----
     def add_identifier(self, label: str, value: str) -> None:
@@ -76,6 +77,7 @@ def load() -> Config:
             hotkey=data.get("hotkey", DEFAULT_HOTKEY),
             hotkey_region=data.get("hotkey_region", DEFAULT_HOTKEY_REGION),
             save_unlocked_copy=bool(data.get("save_unlocked_copy", True)),
+            overwrite_original=bool(data.get("overwrite_original", False)),
         )
     except (json.JSONDecodeError, OSError):
         # config corrompida: não derruba o app, começa limpo (mas preserva backup)

@@ -64,6 +64,7 @@ No **Mac**, antes: `brew install zbar` (senão o leitor de código de barras nã
 
 ### Windows (`.exe`)
 Dê dois cliques em **`build_windows.bat`** (ou rode no terminal). Sai em `dist\LeitorSereia.exe`.
+Passo a passo completo (pré-requisitos, uso, instalador): veja **[WINDOWS.md](WINDOWS.md)**.
 
 ### macOS
 No terminal: `bash build_mac.sh`. Sai em `dist/LeitorSereia`.

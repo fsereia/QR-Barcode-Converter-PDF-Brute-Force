@@ -7,7 +7,7 @@ pyzbar>=0.1.9
 opencv-python-headless>=4.8.0
 numpy>=1.24.0
 pyperclip>=1.8.2
-keyboard>=0.13.5
+pynput>=1.7.6         # atalhos globais (Windows sem admin; Mac com Acessibilidade)
 pikepdf>=8.0.0
 tkinterdnd2>=0.4.2   # arrastar-e-soltar PDF na janela (opcional; app funciona sem)
 

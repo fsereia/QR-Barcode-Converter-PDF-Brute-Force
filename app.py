@@ -275,6 +275,35 @@ def _read_clipboard_image() -> None:
 # ---------------------------------------------------------------------------
 
 _ICON_REF = {"icon": None}
+_HOTKEY_REF = {"listener": None}
+
+
+# ---------------------------------------------------------------------------
+# Atalhos globais (pynput) — multiplataforma
+# ---------------------------------------------------------------------------
+
+def _hotkey_to_pynput(hk: str) -> str:
+    """Converte 'ctrl+shift+q' (formato do config) pro formato do pynput
+    ('<ctrl>+<shift>+q'). Modificadores viram <...>, teclas de 1 caractere
+    ficam como estão, e nomes maiores (f2, space…) viram <f2>, <space>."""
+    mods = {
+        "ctrl": "<ctrl>", "control": "<ctrl>",
+        "shift": "<shift>",
+        "alt": "<alt>", "option": "<alt>", "opt": "<alt>",
+        "cmd": "<cmd>", "command": "<cmd>", "super": "<cmd>",
+        "win": "<cmd>", "windows": "<cmd>", "meta": "<cmd>",
+    }
+    out = []
+    for t in (hk or "").lower().replace(" ", "").split("+"):
+        if not t:
+            continue
+        if t in mods:
+            out.append(mods[t])
+        elif len(t) == 1:
+            out.append(t)
+        else:
+            out.append(f"<{t}>")
+    return "+".join(out)
 
 
 def _notify(title: str, message: str) -> None:
@@ -335,11 +364,12 @@ def run_tray() -> int:
         _notify("Leitor Sereia", msg)
 
     def act_quit(icon, item):
-        try:
-            import keyboard
-            keyboard.unhook_all()
-        except Exception:
-            pass
+        lst = _HOTKEY_REF.get("listener")
+        if lst is not None:
+            try:
+                lst.stop()
+            except Exception:
+                pass
         icon.stop()
 
     cfg = config_store.load()
@@ -370,15 +400,29 @@ def run_tray() -> int:
     icon = pystray.Icon("LeitorSereia", image, "Leitor Sereia", menu=pystray.Menu(*menu_items))
     _ICON_REF["icon"] = icon
 
-    # atalhos globais
+    # atalhos globais (pynput: Windows sem admin; Mac pede permissão de Acessibilidade)
+    def _hot_read():
+        threading.Thread(target=_read_fullscreen_then_area, daemon=True).start()
+
+    def _hot_area():
+        _launch("--area")
+
     try:
-        import keyboard
-        keyboard.add_hotkey(cfg.hotkey,
-                            lambda: threading.Thread(target=_read_fullscreen_then_area,
-                                                     daemon=True).start())
-        keyboard.add_hotkey(cfg.hotkey_region, lambda: _launch("--area"))
+        from pynput import keyboard as _kb
+        hk_read = _hotkey_to_pynput(cfg.hotkey)
+        hk_area = _hotkey_to_pynput(cfg.hotkey_region)
+        mapping = {}
+        if hk_read:
+            mapping[hk_read] = _hot_read
+        if hk_area and hk_area != hk_read:
+            mapping[hk_area] = _hot_area
+        listener = _kb.GlobalHotKeys(mapping)
+        listener.daemon = True
+        listener.start()
+        _HOTKEY_REF["listener"] = listener
     except Exception as e:
-        print(f"(atalho global indisponível: {e} — use o menu do tray)")
+        print(f"(atalho global indisponível: {e} — use o menu do tray). "
+              f"No Mac, libere o app em Ajustes → Privacidade e Segurança → Acessibilidade.")
 
     icon.run()
     return 0

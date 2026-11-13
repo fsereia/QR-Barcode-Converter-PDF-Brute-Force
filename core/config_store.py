@@ -21,7 +21,7 @@ from dataclasses import dataclass, asdict, field
 
 APP_DIRNAME = "LeitorSereia"
 DEFAULT_HOTKEY = "ctrl+shift+q"          # ler a tela inteira (rápido)
-DEFAULT_HOTKEY_REGION = "ctrl+shift+4"  # recortar área da tela (estilo Mac Cmd+Shift+4)
+DEFAULT_HOTKEY_REGION = "ctrl+shift+2"  # recortar área da tela (evita conflito com o print nativo)
 
 
 def config_dir() -> str:

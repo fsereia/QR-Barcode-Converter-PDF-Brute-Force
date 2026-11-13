@@ -185,6 +185,31 @@ class SettingsWindow:
         ttk.Button(unlock_area, text="Escolher um PDF…",
                    command=self._pick_and_unlock).pack(anchor="w")
 
+        # ---- atalhos de teclado ----
+        hk_area = ttk.LabelFrame(root, text="Atalhos de teclado (globais)", padding=12)
+        hk_area.pack(fill="x", padx=12, pady=(0, 8))
+
+        grid = ttk.Frame(hk_area)
+        grid.pack(fill="x")
+        ttk.Label(grid, text="Ler tela inteira:").grid(row=0, column=0, sticky="w", pady=2)
+        self.e_hk = ttk.Entry(grid, width=22)
+        self.e_hk.insert(0, cfg.hotkey)
+        self.e_hk.grid(row=0, column=1, padx=6, pady=2)
+        ttk.Label(grid, text="Recortar área:").grid(row=1, column=0, sticky="w", pady=2)
+        self.e_hkr = ttk.Entry(grid, width=22)
+        self.e_hkr.insert(0, cfg.hotkey_region)
+        self.e_hkr.grid(row=1, column=1, padx=6, pady=2)
+        ttk.Button(grid, text="Salvar atalhos", command=self._save_hotkeys).grid(
+            row=0, column=2, rowspan=2, padx=8)
+
+        ttk.Label(
+            hk_area,
+            text="Formato: teclas separadas por +, ex.: ctrl+shift+q, ctrl+alt+1, cmd+shift+z.\n"
+                 "Modificadores: ctrl, shift, alt, cmd. Mudança vale depois de reabrir o app.\n"
+                 "No Mac evite cmd+shift+3/4/5 (são o print nativo do sistema).",
+            justify="left", foreground="#666", padding=(0, 8, 0, 0),
+        ).pack(anchor="w")
+
         # botão de baixo
         btns = ttk.Frame(root, padding=12)
         btns.pack(fill="x")
@@ -238,6 +263,26 @@ class SettingsWindow:
             return
         for p in paths:
             _do_unlock(self.root, self.cfg, p, self.overwrite_var.get())
+
+    def _save_hotkeys(self):
+        hk = self.e_hk.get().strip().lower().replace(" ", "")
+        hkr = self.e_hkr.get().strip().lower().replace(" ", "")
+        if not hk or not hkr:
+            messagebox.showwarning("Atalhos", "Preencha os dois atalhos.", parent=self.root)
+            return
+        if hk == hkr:
+            messagebox.showwarning("Atalhos", "Os dois atalhos não podem ser iguais.",
+                                   parent=self.root)
+            return
+        self.cfg.hotkey = hk
+        self.cfg.hotkey_region = hkr
+        config_store.save(self.cfg)
+        messagebox.showinfo(
+            "Atalhos salvos",
+            f"Ler tela inteira: {hk}\nRecortar área: {hkr}\n\n"
+            "Feche e abra o Leitor Sereia para os novos atalhos valerem.",
+            parent=self.root,
+        )
 
     def _save_close(self):
         config_store.save(self.cfg)

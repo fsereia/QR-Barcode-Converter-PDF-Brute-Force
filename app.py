@@ -181,42 +181,70 @@ def _flash(message: str, ok: bool = True, ms: int = 1700) -> None:
 
 
 def mode_area() -> int:
-    """Overlay de seleção de área -> captura -> decodifica -> copia."""
+    """
+    Captura a tela primeiro, MOSTRA a captura (com um véu escuro por cima, não
+    uma tela preta) e deixa você arrastar sobre o código. O recorte é cortado
+    da captura em alta resolução (lida com Retina), decodificado e copiado.
+    """
     import tkinter as tk
-    from PIL import ImageGrab
+    from tkinter import messagebox
+    from PIL import ImageTk
+    from core.screen import capture_fullscreen
     from core.reader import decode_image, best_text
 
-    sel = {}
+    shot = capture_fullscreen()
+    if shot is None:
+        root = tk.Tk(); root.withdraw()
+        messagebox.showwarning(
+            "Leitor Sereia — permissão de tela",
+            "Não consegui capturar a tela.\n\n"
+            "Ative o Leitor Sereia em:\n"
+            "Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela\n\n"
+            "Vou abrir essa tela de ajustes. Depois de ligar, tente de novo.")
+        root.destroy()
+        _open_privacy_pane("Privacy_ScreenCapture")
+        return 0
 
     root = tk.Tk()
     root.attributes("-fullscreen", True)
-    try:
-        root.attributes("-alpha", 0.25)
-    except tk.TclError:
-        pass
-    root.configure(bg="black")
     root.attributes("-topmost", True)
-    canvas = tk.Canvas(root, cursor="cross", bg="gray11", highlightthickness=0)
+    root.configure(bg="black")
+    sw = root.winfo_screenwidth() or shot.width
+    sh = root.winfo_screenheight() or shot.height
+    # escala pixels-da-captura -> pontos-da-tela (Retina: scale ~2)
+    scale_x = shot.width / sw
+    scale_y = shot.height / sh
+    disp = shot if shot.size == (sw, sh) else shot.resize((sw, sh))
+    tkimg = ImageTk.PhotoImage(disp)
+
+    canvas = tk.Canvas(root, cursor="cross", highlightthickness=0, bg="black")
     canvas.pack(fill="both", expand=True)
+    canvas.create_image(0, 0, anchor="nw", image=tkimg)
+    canvas.image = tkimg  # evita o garbage collector comer a imagem
+    canvas.create_rectangle(0, 0, sw, sh, fill="black", stipple="gray50", outline="")
+    canvas.create_text(sw // 2, 28, text="Arraste sobre o código  •  ESC cancela",
+                       fill="white", font=("Helvetica", 15, "bold"))
+
+    sel = {}
     rect = {"id": None, "x0": 0, "y0": 0}
 
     def on_down(e):
-        rect["x0"], rect["y0"] = e.x_root, e.y_root
+        rect["x0"], rect["y0"] = e.x, e.y
         if rect["id"]:
             canvas.delete(rect["id"])
         rect["id"] = canvas.create_rectangle(e.x, e.y, e.x, e.y, outline="#19c37d", width=2)
-        rect["cx0"], rect["cy0"] = e.x, e.y
 
     def on_move(e):
         if rect["id"]:
-            canvas.coords(rect["id"], rect["cx0"], rect["cy0"], e.x, e.y)
+            canvas.coords(rect["id"], rect["x0"], rect["y0"], e.x, e.y)
 
     def on_up(e):
-        sel["bbox"] = (min(rect["x0"], e.x_root), min(rect["y0"], e.y_root),
-                       max(rect["x0"], e.x_root), max(rect["y0"], e.y_root))
+        sel["box"] = (min(rect["x0"], e.x), min(rect["y0"], e.y),
+                      max(rect["x0"], e.x), max(rect["y0"], e.y))
         root.destroy()
 
     def on_esc(_):
+        sel.clear()
         root.destroy()
 
     canvas.bind("<ButtonPress-1>", on_down)
@@ -225,18 +253,16 @@ def mode_area() -> int:
     root.bind("<Escape>", on_esc)
     root.mainloop()
 
-    bbox = sel.get("bbox")
-    if not bbox or (bbox[2] - bbox[0] < 5) or (bbox[3] - bbox[1] < 5):
+    box = sel.get("box")
+    if not box or (box[2] - box[0] < 4) or (box[3] - box[1] < 4):
         return 0  # cancelado
 
-    # captura a região (all_screens no Windows cobre multi-monitor)
-    try:
-        img = ImageGrab.grab(bbox=bbox, all_screens=True)
-    except TypeError:
-        img = ImageGrab.grab(bbox=bbox)
+    px = (int(box[0] * scale_x), int(box[1] * scale_y),
+          int(box[2] * scale_x), int(box[3] * scale_y))
+    crop = shot.crop(px)
 
-    hits = decode_image(img)
-    # a imagem (img) é descartada aqui: só o texto é guardado/copiado.
+    hits = decode_image(crop)
+    # a imagem é descartada aqui: só o texto é guardado/copiado.
     if hits:
         from core import history
         text = best_text(hits)
@@ -260,26 +286,42 @@ def _read_fullscreen_then_area() -> None:
     Tenta ler a tela inteira primeiro (rápido, sem janela). Se não achar nada,
     abre a seleção de área. Roda numa thread do processo do tray.
     """
+    from core.screen import capture_fullscreen
+    from core.reader import decode_image, best_text
+
+    img = capture_fullscreen()
+    if img is None:
+        _notify("Permissão de tela necessária",
+                "Ative o Leitor Sereia em Ajustes > Privacidade e Segurança > Gravação de Tela.")
+        if sys.platform == "darwin":
+            _open_privacy_pane("Privacy_ScreenCapture")
+        return
     try:
-        from PIL import ImageGrab
-        from core.reader import decode_image, best_text
-        try:
-            img = ImageGrab.grab(all_screens=True)
-        except TypeError:
-            img = ImageGrab.grab()
         hits = decode_image(img)
-        if hits:
-            from core import history
-            text = best_text(hits)
-            _copy_text(text)
-            history.add_many(hits)
-            _notify("Copiado!", text[:180])
-            return
     except Exception as e:
         _notify("Erro na leitura", str(e))
         return
-    # nada na tela inteira -> seleção de área (processo próprio)
+    if hits:
+        from core import history
+        text = best_text(hits)
+        _copy_text(text)
+        history.add_many(hits)
+        _notify("Copiado!", text[:180])
+        return
+    # nada na tela inteira -> seleção de área manual (processo próprio)
     _launch("--area")
+
+
+def _open_privacy_pane(anchor: str) -> None:
+    """Abre o painel de privacidade do macOS (anchor: Privacy_ScreenCapture
+    ou Privacy_Accessibility). No-op fora do Mac."""
+    if sys.platform != "darwin":
+        return
+    import subprocess
+    try:
+        subprocess.Popen(["open", f"x-apple.systempreferences:com.apple.preference.security?{anchor}"])
+    except Exception:
+        pass
 
 
 def _read_clipboard_image() -> None:
@@ -396,6 +438,18 @@ def run_tray() -> int:
         msg = _integration_module().uninstall()
         _notify("Leitor Sereia", msg)
 
+    def act_perm_screen(icon, item):
+        # dispara uma captura (faz o macOS registrar/pedir a permissão) e abre o painel
+        try:
+            from core.screen import capture_fullscreen
+            capture_fullscreen()
+        except Exception:
+            pass
+        _open_privacy_pane("Privacy_ScreenCapture")
+
+    def act_perm_accessibility(icon, item):
+        _open_privacy_pane("Privacy_Accessibility")
+
     def act_quit(icon, item):
         lst = _HOTKEY_REF.get("listener")
         if lst is not None:
@@ -427,6 +481,9 @@ def run_tray() -> int:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Instalar Ação Rápida botão-direito (.pdf)", act_install_menu),
             pystray.MenuItem("Remover Ação Rápida botão-direito (.pdf)", act_remove_menu),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Permissão: Gravação de Tela…", act_perm_screen),
+            pystray.MenuItem("Permissão: Acessibilidade (atalhos)…", act_perm_accessibility),
         ]
     menu_items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Sair", act_quit)]
 

@@ -59,6 +59,7 @@ echo "[5/6] Empacotando com o PyInstaller..."
   --collect-all tkinterdnd2 \
   --collect-all pyzbar \
   --collect-submodules pynput \
+  --collect-submodules Quartz \
   app.py
 
 echo "[6/6] Gerando o .dmg..."
